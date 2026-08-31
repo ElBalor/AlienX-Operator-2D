@@ -41,7 +41,6 @@ def compute_local_frames(grad_k_vec, coords, neighbor_idx, k_field, eps=1e-4):
     """
     B, N, _ = coords.shape
     K = neighbor_idx.shape[-1]
-    device = coords.device
 
     grad_norm = torch.norm(grad_k_vec, dim=-1, keepdim=True)
     e1_grad = grad_k_vec / (grad_norm + 1e-8)
