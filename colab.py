@@ -221,7 +221,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = AlienXOperator(hidden_dim=384, L=4).to(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=2e-3, weight_decay=1e-4)
 
-epochs = 1000
+epochs = 1500
 warmup_epochs = 50
 resolutions = [16, 32, 64, 128]
 
