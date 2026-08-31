@@ -66,7 +66,7 @@ def compute_local_frames(grad_k_vec, coords, neighbor_idx, k_field, eps=1e-4):
     return e1, e2
 
 class ISNBlock(nn.Module):
-    def __init__(self, hidden_dim=384):
+    def __init__(self, hidden_dim=384, chunk_size=2):
         super().__init__()
         edge_in_dim = 2 * hidden_dim + 4  # h_i, h_j, mag, cos_phase, sin_phase, z_depth
         self.edge_mlp = nn.Sequential(
@@ -81,35 +81,55 @@ class ISNBlock(nn.Module):
         )
         self.norm = nn.LayerNorm(hidden_dim)
         self.res_scale = nn.Parameter(torch.zeros(1))
+        self.chunk_size = chunk_size
 
     def forward(self, h, coords, e1, e2, neighbor_idx, sigma, z_depth):
         B, N, C = h.shape
         K = neighbor_idx.shape[-1]
+        device = h.device
 
-        idx_flat = neighbor_idx.reshape(B, -1)
-        coords_j = torch.gather(coords, 1, idx_flat.unsqueeze(-1).expand(-1,-1,2)).view(B,N,K,2)
-        h_j = torch.gather(h, 1, idx_flat.unsqueeze(-1).expand(-1,-1,C)).view(B,N,K,C)
+        # float32 accumulator to avoid precision loss
+        agg = torch.zeros(B, N, C, device=device, dtype=torch.float32)
 
-        h_i = h.unsqueeze(2).expand(-1,-1,K,-1)
-        coords_i = coords.unsqueeze(2).expand(-1,-1,K,-1)
-        sigma_i = sigma.unsqueeze(2).expand(-1,-1,K,-1)
+        for start in range(0, K, self.chunk_size):
+            end = min(start + self.chunk_size, K)
+            k_chunk = end - start
 
-        delta_x = coords_j - coords_i
-        dx_local = torch.sum(delta_x * e1.unsqueeze(2), dim=-1, keepdim=True)
-        dy_local = torch.sum(delta_x * e2.unsqueeze(2), dim=-1, keepdim=True)
+            # Slice neighbor indices for this chunk only
+            neigh_chunk = neighbor_idx[:, :, start:end]  # [B, N, k_chunk]
 
-        mag = torch.sqrt(dx_local**2 + dy_local**2) / (sigma_i + 1e-8)
-        phase = torch.atan2(dy_local, dx_local)
-        cos_phase = torch.cos(phase)
-        sin_phase = torch.sin(phase)
+            idx_flat = neigh_chunk.reshape(B, -1)
+            coords_j = torch.gather(coords, 1, idx_flat.unsqueeze(-1).expand(-1,-1,2)).view(B, N, k_chunk, 2)
+            h_j = torch.gather(h, 1, idx_flat.unsqueeze(-1).expand(-1,-1,C)).view(B, N, k_chunk, C)
 
-        z_depth_i = z_depth.unsqueeze(2).expand(-1,-1,K,-1)
+            # Reusable non-K-dependent tensors
+            coords_i = coords.unsqueeze(2)       # [B,N,1,2]
+            sigma_i = sigma.unsqueeze(2)         # [B,N,1,1]
+            z_depth_i = z_depth.unsqueeze(2)     # [B,N,1,1]
 
-        edge_input = torch.cat([h_i, h_j, mag, cos_phase, sin_phase, z_depth_i], dim=-1)
-        messages = self.edge_mlp(edge_input)
-        agg = messages.mean(dim=2)
+            delta_x = coords_j - coords_i
+            dx_local = torch.sum(delta_x * e1.unsqueeze(2), dim=-1, keepdim=True)  # [B,N,k_chunk,1]
+            dy_local = torch.sum(delta_x * e2.unsqueeze(2), dim=-1, keepdim=True)
 
-        node_input = torch.cat([h, agg], dim=-1)
+            mag = torch.sqrt(dx_local**2 + dy_local**2) / (sigma_i + 1e-8)
+            phase = torch.atan2(dy_local, dx_local)
+            cos_phase = torch.cos(phase)
+            sin_phase = torch.sin(phase)
+
+            # Expand h_i and z_depth for this chunk
+            h_i = h.unsqueeze(2).expand(-1, -1, k_chunk, -1)
+            z_depth_chunk = z_depth_i.expand(-1, -1, k_chunk, -1)
+
+            edge_input = torch.cat([h_i, h_j, mag, cos_phase, sin_phase, z_depth_chunk], dim=-1)
+
+            messages = self.edge_mlp(edge_input)      # [B,N,k_chunk,C]
+            agg += messages.sum(dim=2)                # accumulate in fp32
+
+        # Mean over K
+        agg = agg / K
+
+        # Node update
+        node_input = torch.cat([h, agg.to(h.dtype)], dim=-1)
         h_new = self.node_mlp(node_input)
         return h + self.res_scale * self.norm(h_new)
 
@@ -123,7 +143,7 @@ class AlienXOperator(nn.Module):
             nn.GELU(),
             nn.Linear(hidden_dim, hidden_dim)
         )
-        self.blocks = nn.ModuleList([ISNBlock(hidden_dim) for _ in range(L)])
+        self.blocks = nn.ModuleList([ISNBlock(hidden_dim, chunk_size=2) for _ in range(L)])
         self.output_proj = nn.Linear(hidden_dim, 1)
 
     def forward(self, coords, k, grad_k_mag, grad_k_vec):
