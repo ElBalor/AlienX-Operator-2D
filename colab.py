@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import math
+import matplotlib.pyplot as plt
+from tqdm import tqdm
 from google.colab import drive
 
 # =============================================================================
@@ -204,6 +206,10 @@ epochs = 1000
 warmup_epochs = 50
 resolutions = [16, 32, 64, 128]
 
+loss_history = []
+log_file = '/content/drive/MyDrive/alienx_training_log.csv'
+plot_path = '/content/drive/MyDrive/alienx_loss_curve.png'
+
 print("🔥 Starting AlienX Training on", device)
 
 for epoch in range(1, epochs + 1):
@@ -240,31 +246,23 @@ for epoch in range(1, epochs + 1):
         optimizer.step()
         total_loss += loss_step.item() / 4
 
-    if epoch % 50 == 0:
-        print(f"Epoch {epoch} | Loss: {total_loss/12:.5f} | LR: {lr:.2e}")
+    avg_loss = total_loss / 12
+    loss_history.append(avg_loss)
 
-# =============================================================================
-# SAVE MODEL TO GOOGLE DRIVE
-# =============================================================================
-save_path = '/content/drive/MyDrive/alienx_8nn.pt'
-torch.save(model.state_dict(), save_path)
-print(f"💾 Model saved to {save_path}")
-
-# =============================================================================
-# QUICK EVALUATION
-# =============================================================================
-model.eval()
-print("\n📊 Quick Evaluation")
-
-with torch.no_grad():
-    for res in [16, 32, 64, 128, 256]:
-        coords, k, mag, vec, p = generate_darcy_sample(res, seed=200, angle_deg=0.0)
-        coords_t = torch.tensor(coords, dtype=torch.float32, device=device).unsqueeze(0)
-        k_t = torch.tensor(k, dtype=torch.float32, device=device).unsqueeze(0)
-        mag_t = torch.tensor(mag, dtype=torch.float32, device=device).unsqueeze(0)
-        vec_t = torch.tensor(vec, dtype=torch.float32, device=device).unsqueeze(0)
-        p_t = torch.tensor(p, dtype=torch.float32, device=device).unsqueeze(0)
-
-        pred = model(coords_t, k_t, mag_t, vec_t)
-        rel_l2 = torch.norm(pred - p_t, dim=-1) / (torch.norm(p_t, dim=-1) + 1e-8)
-        print(f"{res}x{res} | Rel L2 Error: {rel_l2.mean().item():.6f}")
+    if epoch % 50 == 0 or epoch == 1:
+        print(f"Epoch {epoch:4d} | Loss: {avg_loss:.5f} | LR: {lr:.2e}")
+        # Save temporary plot
+        plt.figure(figsize=(10, 5))
+        plt.plot(loss_history, label='Train Loss', color='#ff4d4d')
+        plt.xlabel('Epoch')
+        plt.ylabel('Relative L2 Loss')
+        plt.title('AlienX Training Loss Curve')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        # Save log
+        with open(log_file, 'w') as f:
+            f.write('epoch,loss,lr\n')
+            for i, (l, lr_val) in enumerate(zip(loss_history, [2e-3*(min(epoch, warmup)/warmup) for epoch in range(1, epochs+1)])):
+                f.write(f"{i+1},{l:.6f},{lr_val:.6e}\n")
