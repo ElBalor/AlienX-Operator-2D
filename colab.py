@@ -7,8 +7,12 @@ import torch.nn.functional as F
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from google.colab import drive
 
+# =============================================================================
+# MOUNT GOOGLE DRIVE
+# =============================================================================
 drive.mount('/content/drive')
 
 # =============================================================================
@@ -209,7 +213,17 @@ def generate_darcy_sample(resolution=64, seed=None, angle_deg=0.0):
     return coords_rot, k.flatten(), grad_k_mag, grad_k_vec, p.flatten()
 
 # =============================================================================
-# TRAINING LOOP with proper gradient accumulation
+# PREPARE VALIDATION SET
+# =============================================================================
+val_samples = []
+for seed in range(5):
+    res = [16, 32, 64, 128, 64][seed]  # different resolutions
+    angle = [0, 45, 0, 90, 0][seed]    # some rotations
+    coords, k, mag, vec, p = generate_darcy_sample(res, seed=100+seed, angle_deg=angle)
+    val_samples.append((coords, k, mag, vec, p))
+
+# =============================================================================
+# TRAINING LOOP
 # =============================================================================
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = AlienXOperator(hidden_dim=384, L=4).to(device)
@@ -219,15 +233,17 @@ epochs = 1500
 warmup_epochs = 50
 resolutions = [16, 32, 64, 128]
 
-loss_history = []
+train_loss_history = []
+val_loss_history = []
 log_file = '/content/drive/MyDrive/alienx_training_log.csv'
 plot_path = '/content/drive/MyDrive/alienx_loss_curve.png'
 
 print("🔥 Starting AlienX Training on", device)
 
-for epoch in range(1, epochs + 1):
+for epoch in tqdm(range(1, epochs + 1), desc="Training"):
     model.train()
 
+    # Dynamic LR Warmup + Cosine Decay
     if epoch < warmup_epochs:
         lr = 2e-3 * (epoch / warmup_epochs)
     else:
@@ -254,38 +270,58 @@ for epoch in range(1, epochs + 1):
             pred = model(coords_t, k_t, mag_t, vec_t)
             loss = torch.norm(pred - p_t, dim=-1) / (torch.norm(p_t, dim=-1) + 1e-8)
             loss = loss.mean()
-            loss.backward()   # accumulate gradients
+            loss.backward()
             step_loss += loss.item()
 
         optimizer.step()
         total_loss += step_loss / 4
 
-    avg_loss = total_loss / 12
-    loss_history.append(avg_loss)
+    avg_train_loss = total_loss / 12
+    train_loss_history.append(avg_train_loss)
 
-    if epoch % 50 == 0 or epoch == 1:
-        print(f"Epoch {epoch:4d} | Loss: {avg_loss:.5f} | LR: {lr:.2e}")
+    # Validation loss
+    model.eval()
+    val_loss = 0.0
+    with torch.no_grad():
+        for (coords, k, mag, vec, p) in val_samples:
+            coords_t = torch.tensor(coords, dtype=torch.float32, device=device).unsqueeze(0)
+            k_t = torch.tensor(k, dtype=torch.float32, device=device).unsqueeze(0)
+            mag_t = torch.tensor(mag, dtype=torch.float32, device=device).unsqueeze(0)
+            vec_t = torch.tensor(vec, dtype=torch.float32, device=device).unsqueeze(0)
+            p_t = torch.tensor(p, dtype=torch.float32, device=device).unsqueeze(0)
 
-        plt.figure(figsize=(10, 5))
-        plt.plot(loss_history, label='Train Loss', color='#ff4d4d')
-        plt.xlabel('Epoch')
-        plt.ylabel('Relative L2 Loss')
-        plt.title('AlienX Training Loss Curve')
-        plt.legend()
-        plt.grid(True, alpha=0.3)
-        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
-        plt.close()
+            pred = model(coords_t, k_t, mag_t, vec_t)
+            rel_l2 = torch.norm(pred - p_t, dim=-1) / (torch.norm(p_t, dim=-1) + 1e-8)
+            val_loss += rel_l2.mean().item()
+    val_loss /= len(val_samples)
+    val_loss_history.append(val_loss)
 
-        with open(log_file, 'w') as f:
-            f.write('epoch,loss,lr\n')
-            for i, loss_val in enumerate(loss_history):
-                epoch_idx = i + 1
-                if epoch_idx < warmup_epochs:
-                    lr_val = 2e-3 * (epoch_idx / warmup_epochs)
-                else:
-                    progress = (epoch_idx - warmup_epochs) / (epochs - warmup_epochs)
-                    lr_val = 2e-3 * 0.5 * (1 + np.cos(np.pi * progress))
-                f.write(f"{epoch_idx},{loss_val:.6f},{lr_val:.6e}\n")
+    # Save logs and plot every epoch
+    with open(log_file, 'w') as f:
+        f.write('epoch,train_loss,val_loss,lr\n')
+        for i in range(len(train_loss_history)):
+            epoch_idx = i + 1
+            if epoch_idx < warmup_epochs:
+                lr_val = 2e-3 * (epoch_idx / warmup_epochs)
+            else:
+                progress = (epoch_idx - warmup_epochs) / (epochs - warmup_epochs)
+                lr_val = 2e-3 * 0.5 * (1 + np.cos(np.pi * progress))
+            f.write(f"{epoch_idx},{train_loss_history[i]:.6f},{val_loss_history[i]:.6f},{lr_val:.6e}\n")
+
+    # Update plot every epoch
+    plt.figure(figsize=(10, 5))
+    plt.plot(train_loss_history, label='Train Loss', color='#ff4d4d')
+    plt.plot(val_loss_history, label='Validation Loss', color='#4d79ff')
+    plt.xlabel('Epoch')
+    plt.ylabel('Relative L2 Loss')
+    plt.title('AlienX Training and Validation Loss')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    # Print every epoch
+    print(f"Epoch {epoch:4d} | Train Loss: {avg_train_loss:.5f} | Val Loss: {val_loss:.5f} | LR: {lr:.2e}")
 
 # =============================================================================
 # SAVE FINAL MODEL
@@ -295,7 +331,7 @@ torch.save(model.state_dict(), save_path)
 print(f"💾 Model saved to {save_path}")
 
 # =============================================================================
-# QUICK EVALUATION
+# QUICK EVALUATION (Scale Invariance)
 # =============================================================================
 model.eval()
 print("\n📊 Final Scale Invariance Check")
