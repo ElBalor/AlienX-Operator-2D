@@ -4,7 +4,6 @@ import torch.nn.functional as F
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 from google.colab import drive
 
 # =============================================================================
@@ -13,7 +12,7 @@ from google.colab import drive
 drive.mount('/content/drive')
 
 # =============================================================================
-# MODEL
+# MODEL – AlienX 8‑neighbor Grid KNN
 # =============================================================================
 _KNN_CACHE = {}
 
@@ -69,7 +68,7 @@ def compute_local_frames(grad_k_vec, coords, neighbor_idx, k_field, eps=1e-4):
 class ISNBlock(nn.Module):
     def __init__(self, hidden_dim=384):
         super().__init__()
-        edge_in_dim = 2 * hidden_dim + 4
+        edge_in_dim = 2 * hidden_dim + 4  # h_i, h_j, mag, cos_phase, sin_phase, z_depth
         self.edge_mlp = nn.Sequential(
             nn.Linear(edge_in_dim, hidden_dim),
             nn.GELU(),
@@ -156,7 +155,7 @@ class AlienXOperator(nn.Module):
         return p_pred
 
 # =============================================================================
-# DATA
+# DATA – Darcy with Analytical Gradients
 # =============================================================================
 def generate_darcy_sample(resolution=64, seed=None, angle_deg=0.0):
     if seed is not None:
@@ -196,7 +195,7 @@ def generate_darcy_sample(resolution=64, seed=None, angle_deg=0.0):
     return coords_rot, k.flatten(), grad_k_mag, grad_k_vec, p.flatten()
 
 # =============================================================================
-# TRAINING
+# TRAINING LOOP with logs and plots
 # =============================================================================
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = AlienXOperator(hidden_dim=384, L=4).to(device)
@@ -215,6 +214,7 @@ print("🔥 Starting AlienX Training on", device)
 for epoch in range(1, epochs + 1):
     model.train()
 
+    # Dynamic LR Warmup + Cosine Decay
     if epoch < warmup_epochs:
         lr = 2e-3 * (epoch / warmup_epochs)
     else:
@@ -224,7 +224,7 @@ for epoch in range(1, epochs + 1):
         param_group['lr'] = lr
 
     total_loss = 0.0
-    for step in range(12):
+    for step in range(12):  # 12 outer steps, 4 inner samples = 48 samples/epoch
         optimizer.zero_grad()
         loss_step = 0.0
         for _ in range(4):
@@ -238,7 +238,7 @@ for epoch in range(1, epochs + 1):
             vec_t = torch.tensor(vec, dtype=torch.float32, device=device).unsqueeze(0)
             p_t = torch.tensor(p, dtype=torch.float32, device=device).unsqueeze(0)
 
-            pred = model(coords_t, k_t, mag_t, vec_t)
+            pred = model(coords_t, k_t, mag_t, vec_t)  # correct argument order
             rel_l2 = torch.norm(pred - p_t, dim=-1) / (torch.norm(p_t, dim=-1) + 1e-8)
             loss_step += rel_l2.mean()
 
@@ -251,7 +251,8 @@ for epoch in range(1, epochs + 1):
 
     if epoch % 50 == 0 or epoch == 1:
         print(f"Epoch {epoch:4d} | Loss: {avg_loss:.5f} | LR: {lr:.2e}")
-        # Save temporary plot
+
+        # Save plot
         plt.figure(figsize=(10, 5))
         plt.plot(loss_history, label='Train Loss', color='#ff4d4d')
         plt.xlabel('Epoch')
@@ -261,8 +262,42 @@ for epoch in range(1, epochs + 1):
         plt.grid(True, alpha=0.3)
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         plt.close()
-        # Save log
+
+        # Save log CSV
         with open(log_file, 'w') as f:
             f.write('epoch,loss,lr\n')
-            for i, (l, lr_val) in enumerate(zip(loss_history, [2e-3*(min(epoch, warmup)/warmup) for epoch in range(1, epochs+1)])):
-                f.write(f"{i+1},{l:.6f},{lr_val:.6e}\n")
+            for i, loss_val in enumerate(loss_history):
+                epoch_idx = i + 1
+                if epoch_idx < warmup_epochs:
+                    lr_val = 2e-3 * (epoch_idx / warmup_epochs)
+                else:
+                    progress = (epoch_idx - warmup_epochs) / (epochs - warmup_epochs)
+                    lr_val = 2e-3 * 0.5 * (1 + np.cos(np.pi * progress))
+                f.write(f"{epoch_idx},{loss_val:.6f},{lr_val:.6e}\n")
+
+# =============================================================================
+# SAVE FINAL MODEL
+# =============================================================================
+save_path = '/content/drive/MyDrive/alienx_8nn.pt'
+torch.save(model.state_dict(), save_path)
+print(f"💾 Model saved to {save_path}")
+
+# =============================================================================
+# QUICK EVALUATION (Scale Invariance)
+# =============================================================================
+model.eval()
+print("\n📊 Final Scale Invariance Check")
+with torch.no_grad():
+    for res in [16, 32, 64, 128, 256]:
+        coords, k, mag, vec, p = generate_darcy_sample(res, seed=200, angle_deg=0.0)
+        coords_t = torch.tensor(coords, dtype=torch.float32, device=device).unsqueeze(0)
+        k_t = torch.tensor(k, dtype=torch.float32, device=device).unsqueeze(0)
+        mag_t = torch.tensor(mag, dtype=torch.float32, device=device).unsqueeze(0)
+        vec_t = torch.tensor(vec, dtype=torch.float32, device=device).unsqueeze(0)
+        p_t = torch.tensor(p, dtype=torch.float32, device=device).unsqueeze(0)
+
+        pred = model(coords_t, k_t, mag_t, vec_t)
+        rel_l2 = torch.norm(pred - p_t, dim=-1) / (torch.norm(p_t, dim=-1) + 1e-8)
+        print(f"{res}x{res} | Rel L2 Error: {rel_l2.mean().item():.6f}")
+
+print("\n✅ Training complete. Checkpoint and logs saved to Google Drive.")
