@@ -1,3 +1,6 @@
+import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,9 +9,6 @@ import math
 import matplotlib.pyplot as plt
 from google.colab import drive
 
-# =============================================================================
-# MOUNT GOOGLE DRIVE
-# =============================================================================
 drive.mount('/content/drive')
 
 # =============================================================================
@@ -66,9 +66,9 @@ def compute_local_frames(grad_k_vec, coords, neighbor_idx, k_field, eps=1e-4):
     return e1, e2
 
 class ISNBlock(nn.Module):
-    def __init__(self, hidden_dim=384, chunk_size=2):
+    def __init__(self, hidden_dim=384, chunk_size=1):
         super().__init__()
-        edge_in_dim = 2 * hidden_dim + 4  # h_i, h_j, mag, cos_phase, sin_phase, z_depth
+        edge_in_dim = 2 * hidden_dim + 4
         self.edge_mlp = nn.Sequential(
             nn.Linear(edge_in_dim, hidden_dim),
             nn.GELU(),
@@ -88,27 +88,24 @@ class ISNBlock(nn.Module):
         K = neighbor_idx.shape[-1]
         device = h.device
 
-        # float32 accumulator to avoid precision loss
         agg = torch.zeros(B, N, C, device=device, dtype=torch.float32)
 
         for start in range(0, K, self.chunk_size):
             end = min(start + self.chunk_size, K)
             k_chunk = end - start
 
-            # Slice neighbor indices for this chunk only
-            neigh_chunk = neighbor_idx[:, :, start:end]  # [B, N, k_chunk]
+            neigh_chunk = neighbor_idx[:, :, start:end]
 
             idx_flat = neigh_chunk.reshape(B, -1)
             coords_j = torch.gather(coords, 1, idx_flat.unsqueeze(-1).expand(-1,-1,2)).view(B, N, k_chunk, 2)
             h_j = torch.gather(h, 1, idx_flat.unsqueeze(-1).expand(-1,-1,C)).view(B, N, k_chunk, C)
 
-            # Reusable non-K-dependent tensors
-            coords_i = coords.unsqueeze(2)       # [B,N,1,2]
-            sigma_i = sigma.unsqueeze(2)         # [B,N,1,1]
-            z_depth_i = z_depth.unsqueeze(2)     # [B,N,1,1]
+            coords_i = coords.unsqueeze(2)
+            sigma_i = sigma.unsqueeze(2)
+            z_depth_i = z_depth.unsqueeze(2)
 
             delta_x = coords_j - coords_i
-            dx_local = torch.sum(delta_x * e1.unsqueeze(2), dim=-1, keepdim=True)  # [B,N,k_chunk,1]
+            dx_local = torch.sum(delta_x * e1.unsqueeze(2), dim=-1, keepdim=True)
             dy_local = torch.sum(delta_x * e2.unsqueeze(2), dim=-1, keepdim=True)
 
             mag = torch.sqrt(dx_local**2 + dy_local**2) / (sigma_i + 1e-8)
@@ -116,19 +113,16 @@ class ISNBlock(nn.Module):
             cos_phase = torch.cos(phase)
             sin_phase = torch.sin(phase)
 
-            # Expand h_i and z_depth for this chunk
             h_i = h.unsqueeze(2).expand(-1, -1, k_chunk, -1)
             z_depth_chunk = z_depth_i.expand(-1, -1, k_chunk, -1)
 
             edge_input = torch.cat([h_i, h_j, mag, cos_phase, sin_phase, z_depth_chunk], dim=-1)
 
-            messages = self.edge_mlp(edge_input)      # [B,N,k_chunk,C]
-            agg += messages.sum(dim=2)                # accumulate in fp32
+            messages = self.edge_mlp(edge_input)
+            agg += messages.sum(dim=2)
 
-        # Mean over K
         agg = agg / K
 
-        # Node update
         node_input = torch.cat([h, agg.to(h.dtype)], dim=-1)
         h_new = self.node_mlp(node_input)
         return h + self.res_scale * self.norm(h_new)
@@ -143,7 +137,7 @@ class AlienXOperator(nn.Module):
             nn.GELU(),
             nn.Linear(hidden_dim, hidden_dim)
         )
-        self.blocks = nn.ModuleList([ISNBlock(hidden_dim, chunk_size=2) for _ in range(L)])
+        self.blocks = nn.ModuleList([ISNBlock(hidden_dim, chunk_size=1) for _ in range(L)])
         self.output_proj = nn.Linear(hidden_dim, 1)
 
     def forward(self, coords, k, grad_k_mag, grad_k_vec):
@@ -175,7 +169,7 @@ class AlienXOperator(nn.Module):
         return p_pred
 
 # =============================================================================
-# DATA – Darcy with Analytical Gradients
+# DATA
 # =============================================================================
 def generate_darcy_sample(resolution=64, seed=None, angle_deg=0.0):
     if seed is not None:
@@ -215,7 +209,7 @@ def generate_darcy_sample(resolution=64, seed=None, angle_deg=0.0):
     return coords_rot, k.flatten(), grad_k_mag, grad_k_vec, p.flatten()
 
 # =============================================================================
-# TRAINING LOOP with logs and plots
+# TRAINING LOOP with proper gradient accumulation
 # =============================================================================
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = AlienXOperator(hidden_dim=384, L=4).to(device)
@@ -234,7 +228,6 @@ print("🔥 Starting AlienX Training on", device)
 for epoch in range(1, epochs + 1):
     model.train()
 
-    # Dynamic LR Warmup + Cosine Decay
     if epoch < warmup_epochs:
         lr = 2e-3 * (epoch / warmup_epochs)
     else:
@@ -244,9 +237,9 @@ for epoch in range(1, epochs + 1):
         param_group['lr'] = lr
 
     total_loss = 0.0
-    for step in range(12):  # 12 outer steps, 4 inner samples = 48 samples/epoch
+    for step in range(12):
         optimizer.zero_grad()
-        loss_step = 0.0
+        step_loss = 0.0
         for _ in range(4):
             res = np.random.choice(resolutions)
             angle = np.random.uniform(0, 360) if np.random.rand() < 0.3 else 0.0
@@ -258,13 +251,14 @@ for epoch in range(1, epochs + 1):
             vec_t = torch.tensor(vec, dtype=torch.float32, device=device).unsqueeze(0)
             p_t = torch.tensor(p, dtype=torch.float32, device=device).unsqueeze(0)
 
-            pred = model(coords_t, k_t, mag_t, vec_t)  # correct argument order
-            rel_l2 = torch.norm(pred - p_t, dim=-1) / (torch.norm(p_t, dim=-1) + 1e-8)
-            loss_step += rel_l2.mean()
+            pred = model(coords_t, k_t, mag_t, vec_t)
+            loss = torch.norm(pred - p_t, dim=-1) / (torch.norm(p_t, dim=-1) + 1e-8)
+            loss = loss.mean()
+            loss.backward()   # accumulate gradients
+            step_loss += loss.item()
 
-        (loss_step / 4).backward()
         optimizer.step()
-        total_loss += loss_step.item() / 4
+        total_loss += step_loss / 4
 
     avg_loss = total_loss / 12
     loss_history.append(avg_loss)
@@ -272,7 +266,6 @@ for epoch in range(1, epochs + 1):
     if epoch % 50 == 0 or epoch == 1:
         print(f"Epoch {epoch:4d} | Loss: {avg_loss:.5f} | LR: {lr:.2e}")
 
-        # Save plot
         plt.figure(figsize=(10, 5))
         plt.plot(loss_history, label='Train Loss', color='#ff4d4d')
         plt.xlabel('Epoch')
@@ -283,7 +276,6 @@ for epoch in range(1, epochs + 1):
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         plt.close()
 
-        # Save log CSV
         with open(log_file, 'w') as f:
             f.write('epoch,loss,lr\n')
             for i, loss_val in enumerate(loss_history):
@@ -303,7 +295,7 @@ torch.save(model.state_dict(), save_path)
 print(f"💾 Model saved to {save_path}")
 
 # =============================================================================
-# QUICK EVALUATION (Scale Invariance)
+# QUICK EVALUATION
 # =============================================================================
 model.eval()
 print("\n📊 Final Scale Invariance Check")
