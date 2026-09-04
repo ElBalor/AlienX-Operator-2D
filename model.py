@@ -22,7 +22,8 @@ def get_deterministic_grid_knn(grid_size, device, k=8, dilation=1):
     ]
     knn_idx = torch.stack(neighbors[:k], dim=-1).reshape(N, k)
     return knn_idx.unsqueeze(0)
-
+ 
+ 
 def get_cached_knn(grid_size, device, k=8, dilation=1):
     """Returns the cached stencil for a given grid size and device."""
     key = (grid_size, str(device), k, dilation)
