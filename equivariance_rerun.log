@@ -1,0 +1,47 @@
+Error processing line 1 of C:\Users\Heylel Yaka\Miniconda3\Lib\site-packages\ruamel.yaml-0.17.21-py3.12-nspkg.pth:
+
+  Traceback (most recent call last):
+    File "<frozen site>", line 206, in addpackage
+    File "<string>", line 1, in <module>
+    File "<frozen importlib._bootstrap>", line 810, in module_from_spec
+  AttributeError: 'NoneType' object has no attribute 'loader'
+
+Remainder of file ignored
+NOTE: checkpoint 'alienx_best.pt' not found — running on UNTRAINED weights.
+      res_scale set to 1.0 on all blocks (zero-init would
+      make message passing a no-op and the D4 test pass trivially).
+======================================================================
+ALIENX 2D v2 — STRICT EQUIVARIANCE:  pred(R.k) = R.pred(k)
+======================================================================
+
+[TEST 1] Exact D4 commutation:  pred(R.k) = R.pred(k)   (grid 32x32, interior)
+     angle |     max|d| |    mean|d| |       rel | rel vs tol
+       90° |  0.000e+00 |  0.000e+00 |  0.00e+00 |   <= 1e-04  PASS
+          fallback nodes: 0.0%   max|d| fallback=nan  grad-branch=0.000e+00
+      180° |  0.000e+00 |  0.000e+00 |  0.00e+00 |   <= 1e-04  PASS
+          fallback nodes: 0.0%   max|d| fallback=nan  grad-branch=0.000e+00
+      270° |  0.000e+00 |  0.000e+00 |  0.00e+00 |   <= 1e-04  PASS
+          fallback nodes: 0.0%   max|d| fallback=nan  grad-branch=0.000e+00
+
+[TEST 2] Continuous-angle self-consistency (grid 64x64, bilinear floor)
+     angle |     max|d| |    mean|d|
+     13.0° |  1.187e-01 |  4.722e-03
+     27.0° |  1.033e-01 |  7.331e-03
+     77.0° |  1.215e-01 |  4.918e-03
+    123.0° |  1.246e-01 |  7.594e-03
+    199.0° |  1.128e-01 |  5.876e-03
+    (informational: bilinear interpolation floor included in these numbers)
+
+[TEST 3] sign_lock verification: fallback branch forced (grid 32x32)
+    Case A     90°: max|d| = 1.431e-06   CLEAN (sign_lock holds)
+    Case A    180°: max|d| = 1.669e-06   CLEAN (sign_lock holds)
+    Case A    270°: max|d| = 1.669e-06   CLEAN (sign_lock holds)
+    Case B   90°: max|d| = 1.315e-03   (zero-field degenerate; S = 0 makes the eigenvector arbitrary —
+           sign_lock multiplies 0 * s = 0, locked only by aligned
+           summation order; reported for transparency)
+    verdict: eigh sign boundary CLOSED — fallback branch is
+    equivariant at all D4 angles with the sign_lock active.
+    (Case B is ill-posed by construction and excluded from the verdict.)
+======================================================================
+D4 EQUIVARIANCE: PASS (within tolerance)
+======================================================================
