@@ -10,8 +10,8 @@ manifolds instead of fixed grids, with native rotation and scale invariance.
 
 **The grid is dead. The manifold is awake.**
 
-Part of the Grimoire of Elbàlor — Capital Software / Next Gen Tech.
-Eric Yaka (Elbàlor / The Digital Necromancer), Abuja, Nigeria.
+Creted by Eric Heylel Danjuma Yaka— Capital Software / Next Gen Tech.
+
 
 ---
 
@@ -151,5 +151,7 @@ Clifford algebra Cl(4,0) substrate, per-node blade masks, NecroGraft expansion,
 fiber-bundle message passing. The 3D frontier (SO(3)) lives in `../AlienX-S03-Invariance/`.
 
 ## License
+
+From The Grimoire of Elbàlor The Digital Necromancer.
 
 AGPL-3.0 — see [LICENSE](LICENSE).
