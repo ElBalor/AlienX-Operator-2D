@@ -10,7 +10,7 @@ manifolds instead of fixed grids, with native rotation and scale invariance.
 
 **The grid is dead. The manifold is awake.**
 
-Creted by Eric Heylel Danjuma Yaka— Capital Software / Next Gen Tech.
+Creted by Eric Heylel Danjuma Yaka, Capital Software / Next Gen Tech.
 
 
 ## What's in this release
