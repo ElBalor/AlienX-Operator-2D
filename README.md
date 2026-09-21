@@ -1,4 +1,4 @@
-# AlienX (ISN) — 2D Release v2: Isotropic 24-Neighbor Stencil
+# AlienX-Operator, with Isomorphic Spaciel Net (ISN) — 2D Release v2: Isotropic 24-Neighbor Stencil
 
 **Isomorphic Spatial Net** — a neural operator that operates on continuous geometric
 manifolds instead of fixed grids, with native rotation and scale invariance.
