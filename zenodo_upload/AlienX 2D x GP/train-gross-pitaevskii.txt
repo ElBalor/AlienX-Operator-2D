@@ -1,0 +1,70 @@
+device: cuda
+params: 416,150
+generating dataset...
+epoch    0  loss=0.044071  best=0.044071  lr=2.0e-03  (3s)
+epoch   10  loss=0.000455  best=0.000455  lr=2.0e-03  (23s)
+epoch   20  loss=0.000448  best=0.000378  lr=2.0e-03  (44s)
+epoch   30  loss=0.000203  best=0.000143  lr=1.9e-03  (65s)
+epoch   40  loss=0.000059  best=0.000059  lr=1.9e-03  (87s)
+epoch   50  loss=0.000054  best=0.000032  lr=1.9e-03  (110s)
+epoch   60  loss=0.000033  best=0.000023  lr=1.8e-03  (133s)
+epoch   70  loss=0.000020  best=0.000019  lr=1.7e-03  (156s)
+epoch   80  loss=0.000016  best=0.000015  lr=1.7e-03  (178s)
+epoch   90  loss=0.000017  best=0.000011  lr=1.6e-03  (201s)
+epoch  100  loss=0.000020  best=0.000011  lr=1.5e-03  (224s)
+epoch  110  loss=0.000011  best=0.000009  lr=1.4e-03  (246s)
+epoch  120  loss=0.000009  best=0.000009  lr=1.3e-03  (269s)
+epoch  130  loss=0.000010  best=0.000008  lr=1.2e-03  (291s)
+epoch  140  loss=0.000008  best=0.000007  lr=1.1e-03  (314s)
+epoch  150  loss=0.000006  best=0.000006  lr=9.9e-04  (337s)
+epoch  160  loss=0.000006  best=0.000006  lr=8.9e-04  (359s)
+epoch  170  loss=0.000007  best=0.000006  lr=7.8e-04  (382s)
+epoch  180  loss=0.000005  best=0.000005  lr=6.8e-04  (405s)
+epoch  190  loss=0.000005  best=0.000005  lr=5.8e-04  (427s)
+epoch  200  loss=0.000005  best=0.000005  lr=4.9e-04  (450s)
+epoch  210  loss=0.000004  best=0.000004  lr=4.0e-04  (473s)
+epoch  220  loss=0.000004  best=0.000004  lr=3.2e-04  (495s)
+epoch  230  loss=0.000004  best=0.000004  lr=2.5e-04  (518s)
+epoch  240  loss=0.000004  best=0.000004  lr=1.9e-04  (541s)
+epoch  250  loss=0.000004  best=0.000004  lr=1.3e-04  (563s)
+epoch  260  loss=0.000004  best=0.000004  lr=8.3e-05  (586s)
+epoch  270  loss=0.000004  best=0.000004  lr=4.7e-05  (608s)
+epoch  280  loss=0.000004  best=0.000004  lr=2.1e-05  (631s)
+epoch  290  loss=0.000004  best=0.000004  lr=5.4e-06  (654s)
+epoch  299  loss=0.000004  best=0.000004  lr=1.0e-06  (674s)
+
+best loss: 0.000004
+total time: 11.2 min
+
+Scale invariance (zero-shot):
+  16×16: 0.000001
+  32×32: 0.000001
+  64×64: 0.000001
+  128×128: 0.000001
+
+Rotation equivariance (64×64):
+    0°  MSE=0.000001
+   15°  MSE=0.000002
+   30°  MSE=0.000002
+   45°  MSE=0.000002
+   60°  MSE=0.000002
+   75°  MSE=0.000002
+   90°  MSE=0.000001
+  105°  MSE=0.000002
+  120°  MSE=0.000002
+  135°  MSE=0.000002
+  150°  MSE=0.000002
+  165°  MSE=0.000002
+  180°  MSE=0.000001
+  195°  MSE=0.000002
+  210°  MSE=0.000002
+  225°  MSE=0.000002
+  240°  MSE=0.000002
+  255°  MSE=0.000002
+  270°  MSE=0.000001
+  285°  MSE=0.000002
+  300°  MSE=0.000002
+  315°  MSE=0.000002
+  330°  MSE=0.000002
+  345°  MSE=0.000002
+  mean=0.000002  std=0.000000  max=0.000002
