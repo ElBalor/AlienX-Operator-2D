@@ -1,0 +1,51 @@
+Mounted at /content/drive
+save dir: /content/drive/MyDrive/AlienX_GP
+device: cuda
+
+building dataset...
+  train: 192 samples  val: 36 samples  (2.5s)
+  params: 416,150
+
+training 200 epochs, warmup=20
+K-schedule: [(0, 1), (40, 3), (100, 5)]
+======================================================================
+epoch    0  K=1  train=0.030440  val=0.019208  lr=1.0e-04  (8s) ★
+epoch   10  K=1  train=0.003608  val=0.004050  lr=1.1e-03  (78s) ★
+epoch   20  K=1  train=0.001322  val=0.001559  lr=2.0e-03  (153s) ★
+epoch   30  K=1  train=0.000672  val=0.000809  lr=2.0e-03  (228s) ★
+epoch   40  K=3  train=0.054784  val=0.009574  lr=1.9e-03  (318s)
+epoch   50  K=3  train=0.004087  val=0.001409  lr=1.9e-03  (545s)
+epoch   60  K=3  train=0.002329  val=0.000767  lr=1.8e-03  (777s) ★
+epoch   70  K=3  train=0.001741  val=0.000563  lr=1.6e-03  (1005s) ★
+epoch   80  K=3  train=0.001239  val=0.000446  lr=1.5e-03  (1234s) ★
+epoch   90  K=3  train=0.000877  val=0.000393  lr=1.3e-03  (1463s) ★
+epoch  100  K=5  train=0.007609  val=0.002333  lr=1.2e-03  (1706s)
+epoch  110  K=5  train=0.002605  val=0.000503  lr=1.0e-03  (2089s)
+epoch  120  K=5  train=0.001688  val=0.000577  lr=8.3e-04  (2476s)
+epoch  130  K=5  train=0.001301  val=0.000334  lr=6.6e-04  (2860s) ★
+epoch  140  K=5  train=0.000933  val=0.000236  lr=5.0e-04  (3243s) ★
+epoch  150  K=5  train=0.000744  val=0.000219  lr=3.6e-04  (3625s) ★
+epoch  160  K=5  train=0.000604  val=0.000188  lr=2.4e-04  (4007s) ★
+epoch  170  K=5  train=0.000503  val=0.000169  lr=1.4e-04  (4389s) ★
+epoch  180  K=5  train=0.000459  val=0.000158  lr=6.5e-05  (4770s) ★
+epoch  190  K=5  train=0.000434  val=0.000154  lr=2.0e-05  (5150s) ★
+epoch  199  K=5  train=0.000426  val=0.000153  lr=5.2e-06  (5493s) ★
+
+best val: 0.000153
+total time: 91.5 min
+
+loaded best: /content/drive/MyDrive/AlienX_GP/alienx_gp_v3_best.pt
+
+[plot] saved -> /content/drive/MyDrive/AlienX_GP/dark_necromancer_graph_gp.png
+[plot] saved -> /content/drive/MyDrive/AlienX_GP/dark_field_rollout_gp.png
+
+all artifacts saved to: /content/drive/MyDrive/AlienX_GP
+  alienx_gp_best.pt  (1644.8 KB)
+  alienx_gp_final.pt  (1644.9 KB)
+  alienx_gp_v3_best.pt  (1645.0 KB)
+  alienx_gp_v3_final.pt  (1645.1 KB)
+  dark_field_rollout_gp.png  (100.8 KB)
+  dark_necromancer_graph_gp.png  (203.8 KB)
+  gp_metrics.npy  (0.6 KB)
+  results.json  (0.6 KB)
+  training_history.json  (2.0 KB)

@@ -1,0 +1,26 @@
+{
+  "arch": "AlienX 2D",
+  "problem": "2D Gross-Pitaevskii",
+  "params": 416150,
+  "final_loss": 4e-06,
+  "rel_rmse": 0.004,
+  "training_time_min": 11.2,
+  "scale_invariance": {
+    "16x16": 1e-06,
+    "32x32": 1e-06,
+    "64x64": 1e-06,
+    "128x128": 1e-06
+  },
+  "rotation_equivariance": {
+    "n_angles": 24,
+    "mean_mse": 2e-06,
+    "std_mse": 0.0,
+    "max_mse": 2e-06
+  },
+  "fix_applied": [
+    "even-harmonic edge features (cos 2\u03b8, sin 2\u03b8)",
+    "frame source k = |\u03c8|\u00b2 instead of |\u03c8|\u00b2\u00b7|\u2207arg \u03c8|\u00b2"
+  ],
+  "prior_plateau": 0.056,
+  "improvement_factor": 14
+}
