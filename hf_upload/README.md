@@ -1,156 +1,188 @@
----
-license: agpl-3.0
-library_name: pytorch
-tags:
-- neural-operator
-- equivariance
-- rotation-invariance
-- scale-invariance
-- pde
-- darcy-flow
-- physics
-- graph-networks
-- complex-valued
-metrics:
-- l1
----
+# The AlienX-Operator, with Isomorphic Spatial Net (ISN) — 2D Release v3: Isotropic Stencil + Gross-Pitaevskii
 
-# AlienX (ISN) — 2D Isotropic Stencil v2
+**Isomorphic Spatial Net** : A neural operator that operates on continuous geometric
+manifolds instead of fixed grids, with native rotation and scale invariance.
 
-**Isomorphic Spatial Net** — a neural operator that operates on continuous geometric manifolds instead of fixed grids, with native rotation and scale invariance.
+> Strict operator-level verification: **pred(R·k) = R·pred(k), bitwise exact**
+> under D4 (90/180/270°) with live message passing — fallback branch closed at
+> the roundoff floor by the sign_lock. Rerun it yourself:
+> `python test_equivariance.py --device cuda`
 
-> The grid is dead. The manifold is awake.
+**The grid is dead. The manifold is awake.**
 
-**Strict operator-level equivariance: `pred(R·k) = R·pred(k)`, bitwise exact (0.000e+00) under D4 with live message passing.**
+Created by Eric Heylel Danjuma Yaka, Capital Software / Next Gen Tech.
 
-## Live demo
 
-**[👉 AlienX Labs — Sigil Lab](https://elbalor-alienx-labs.streamlit.app)** — rotate a
-Darcy field to any angle and watch the error stand still, then *Cast the Compass*
-for the full 0–360° sweep. Source: [ElBalor/alienx-labs](https://github.com/ElBalor/alienx-labs)
-(Streamlit, free tier).
+## What's in this release
 
-## Model description
-
-AlienX replaces the pixel grid with a continuous spatial graph. Each node is a point in R², and message passing occurs over local neighborhoods defined by physical distance. Geometry is not learned from data — the network is *born* with it. Rotation, scale, and translation are coordinate artifacts that vanish before learning begins.
-
-Key mechanisms:
-
-| Mechanism | What it does |
+| File | Purpose |
 |---|---|
-| **Isotropic 24-neighbor stencil** (radius √8) | Uniform angular coverage — no cardinal spikes, no 45° residual |
-| **Local SO(2) frame** | e₁ from ∇k, inertia-tensor fallback with `sign_lock` (deterministic under rotation) |
-| **Even harmonic embedding** (cos 2θ, sin 2θ, cos 4θ, sin 4θ) | Message weights invariant under θ → θ + π |
-| **Constant physical scale depth** | Scale-blind by construction → zero-shot transfer across resolutions |
-| **No data augmentation** | Invariance is structural, not trained |
+| `model.py` | `AlienXOperator` + `ISNBlock` + isotropic 24-neighbor stencil (importable module) |
+| `data.py` | GPU Darcy flow generator with pull-back rotation and analytical gradients |
+| `train.py` | Training + full evaluation suite (modular, imports model/data) |
+| `colab.py` | Single-file self-contained version — paste into Colab, identical to the as-run script |
+| `test_equivariance.py` | Strict operator-level equivariance test: `pred(R·k) = R·pred(k)` |
+| `RESULTS.md` | Full run logs for two independent v2 runs + v1→v2 comparison + strict equivariance results + GP cross-PDE runs |
+| `PAPER.md` | The complete v3 paper (now with §9: Cross-PDE Demonstration — Gross-Pitaevskii) |
+| `AlienX 2D × GP/` | **Cross-PDE demonstration**: both GP training runs, both 5-test eval suites, raw logs, Dark Necromancer graph, dark-field rollout |
 
-- **Parameters:** 415,509 (~0.42M)
-- **Architecture:** input MLP → 4 × ISN blocks → linear head
-- **Task:** Darcy flow operator learning (permeability k → pressure field p)
+## The architecture in one paragraph
 
-## Results (Interior L1)
+Each node lives on a spatial graph with an **isotropic 24-neighbor circular stencil**
+(radius √8 — uniform angular coverage, no cardinal spikes). A **local SO(2) frame**
+(e1 from ∇k, inertia-tensor fallback where ∇k is weak) makes displacements
+rotation-equivariant. Edge features encode the local angle as a **complex harmonic**
+embedding with even harmonics (cos 2θ, sin 2θ, cos 4θ, sin 4θ) — message weights are
+invariant under θ → θ + π. A **constant physical scale depth** makes the operator
+scale-blind by construction, which is exactly what produces zero-shot transfer across
+resolutions. No data augmentation. No learned geometry.
 
-**Scale invariance — zero-shot transfer** (256×256 was never seen in training):
+## Results (v2, Interior L1)
 
-| 16×16 | 32×32 | 64×64 | 128×128 | 256×256 (zero-shot) |
-|---|---|---|---|---|
-| 0.0087 | 0.0052 | 0.0036 | 0.0036 | 0.0038 |
+| Test | Result |
+|---|---|
+| Scale invariance (16→256, 256 zero-shot) | 0.0036–0.0087, no drift |
+| Rotation equivariance (0/45/90/180/270°) | essentially identical — 45° residual eliminated |
+| Arbitrary angles (13/27/77/123/199°) | < 0.003 deviation at ≥ 32×32; < 0.002 at 64×64 |
 
-**Rotation equivariance:** errors at 0°/45°/90°/180°/270° essentially identical at every resolution; arbitrary continuous angles (13°–199°) deviate < 0.003 at resolutions ≥ 32×32.
+Full logs in `RESULTS.md`.
 
-**Strict equivariance test** (`test_equivariance.py`):
+## Figures
 
-```
-[TEST 1] Exact D4 commutation:  pred(R.k) = R.pred(k)
-    90°  | max|d| = 0.000e+00  PASS
-    180° | max|d| = 0.000e+00  PASS
-    270° | max|d| = 0.000e+00  PASS
-[TEST 3] sign_lock verification (fallback branch forced):
-    all D4 angles CLEAN at the roundoff floor (~1.4e-06 – 1.7e-06)
-```
+| | |
+|---|---|
+| ![Dark Necromancer Graph](figures/dark_necromancer_graph_gp.png) | ![Dark field rollout](figures/dark_field_rollout_gp.png) |
+| *Dark Necromancer Graph — Run B training diagnostics (loss, val RelRMSE, LR schedule, K-unroll curriculum)* | *Rollout comparison — split-step Fourier solver vs AlienX, \|ψ\|² at four time steps* |
 
-Full logs in [`RESULTS.md`](./RESULTS.md) — two independent runs, no failures hidden.
+| ![Rotation sweep](figures/alienx_v2_rotation_sweep.png) |
+|---|
+| *Continuous rotation sweep — error vs angle across the full circle* |
 
-## Usage
+---
 
-```python
-import torch
-from huggingface_hub import hf_hub_download
-from model import AlienXOperator, get_cached_iso_knn
-from data import generate_darcy_sample_gpu  # Darcy generator, analytical gradients
+## Cross-PDE: Gross-Pitaevskii (v3)
 
-# Load the checkpoint
-ckpt = hf_hub_download("ElBalor/AlienX-2D-Isotropic-Stencil", "alienx_v2_best.pt")
-model = AlienXOperator(hidden_dim=128, num_blocks=4)
-model.load_state_dict(torch.load(ckpt, map_location="cpu"))
-model.eval()
+The architecture is PDE-agnostic — only the outer shell changes (`k = |ψ|²`,
+regime parameter `g`, invariant `∫|ψ|² = 1`). ψ is natively complex and the
+ISN harmonic machinery operates on complex features natively; Gross-Pitaevskii
+is the test where that pays off. Two runs, 416,150 params each, single-step
+interior RelRMSE:
 
-# Build inputs: permeability k, analytic ∇k (vector + magnitude), 24-neighbor stencil
-coords, k, grad_k_mag, grad_k_vec, p_true = generate_darcy_sample_gpu(resolution=64, device="cpu")
-neighbor_idx = get_cached_iso_knn(64, "cpu")
-
-with torch.no_grad():
-    p_pred = model(
-        coords.unsqueeze(0), k.unsqueeze(0),
-        grad_k_vec.unsqueeze(0), grad_k_mag.unsqueeze(0),
-        neighbor_idx,
-    ).squeeze(0)
-```
-
-End-to-end training + evaluation: `python train.py` or the self-contained `colab.py` (single T4, ~15 min for 500 epochs).
-
-## Cross-PDE demonstration: Gross-Pitaevskii (v3)
-
-The operator is PDE-agnostic — the outer shell changes (`k = |ψ|²`, regime
-parameter `g`, invariant `∫|ψ|² = 1`), nothing else. ψ is natively complex and
-the ISN harmonic machinery operates on complex features natively, so GP is the
-test where that design pays off. Two runs (416,150 params, single-step interior
-RelRMSE; full receipts in the [GitHub repo](https://github.com/ElBalor/AlienX-Operator-2D/tree/main/AlienX%202D%20%C3%97%20GP)):
-
-| Test | Run A (precision, fixed ICs) | Run B (generalization, K-curriculum 1→3→5) |
+| Test | Run A (precision, fixed ICs) | Run B (generalization, K-curriculum) |
 |---|---|---|
 | Eval RelRMSE | **0.3439%** | 1.0686% ± 0.2052% (16 unseen ICs) |
 | Phase ablation | **108.58×** MSE degradation | 61.4× |
 | Rotation sweep (24 angles) | 0.4080% ± 0.0315% | 1.0347% ± 0.0806% |
-| Multi-g (−0.5/−1.0/−2.0) | 0.344–0.362% | 1.044–1.051% |
 | Scale, zero-shot 16→256 | 0.324–0.367% | 1.05–1.10% |
 
 Run A's IC family is deterministic — a mechanism-precision claim, not an
-IC-generalization claim; Run B carries generalization. GP checkpoints:
-`alienx_gp_best.pt` (Run A), `alienx_gp_v3_best.pt` (Run B) — state_dict,
-1.6 MB each, float32. Full detail in paper §9.
+IC-generalization claim; Run B carries generalization. The claims are kept
+separate on purpose. Fix arc: plateau 0.056 → 0.000004 (14×) after even-harmonic
+edge features + `k = |ψ|²` frame source. Full detail: `AlienX 2D × GP/README.md`,
+paper §9, raw receipts in `AlienX 2D × GP/*.txt`.
 
-## Training configuration
+The evaluation suite measures accuracy of the rotated problem. The strict
+statement — rotating the input rotates the output identically — is tested
+directly in `test_equivariance.py`:
 
-- AdamW, lr 2e-3, weight decay 1e-4, cosine annealing, 500 epochs
-- Resolutions {16, 32, 64, 128} × 16 samples, random rotations in [0, 360)
-- Interior MSE with dilation-scaled boundary crop
-- Final training loss: 0.000034 · 64×64 interior L1: 0.003631
+```bash
+python test_equivariance.py --checkpoint alienx_best.pt --device cuda
+```
+
+Three tests:
+
+1. **Exact D4 commutation** (90/180/270°): `R·k` and `R·pred(k)` are exact
+   index permutations of the flat fields — no interpolation, no generator
+   rounding. Result on the v2 architecture with message passing live:
+   **max |pred(R·k) − R·pred(k)| = 0.000e+00 — bitwise exact.** With the
+   gradient branch active there are no cross-node reductions, and every
+   within-node reduction runs in bitwise-identical order in the rotated
+   run (aligned slot permutation; 2-element sums are IEEE-commutative).
+   Control probe: mis-aligning only the slot order moves the output by
+   ~1.4e-06 — summation order is the sole roundoff carrier, and it is
+   aligned. (Earlier draft's "1–2e-08" was an artifact of zero-init
+   res_scale — messages were a no-op; retracted.)
+2. **Continuous angles** (13/27/77/123/199°): evaluated against bilinearly
+   interpolated `R·pred(k)` — max ≈ 1e-01, mean ≈ 5e-03–8e-03, uniformly
+   flat across angles (interpolation + discretization floor, not operator
+   error). Informational regression tracker.
+3. **`sign_lock` verification**: the eigh sign boundary is CLOSED.
+   `eigh`'s eigenvector sign is unspecified under rotation
+   (dot(R·e1, e1_rot) = −1.0000 at 90°/180°), which previously broke the
+   odd cos/sin edge input at ~1.5e-03 when the fallback was forced. Fix
+   (ported from the 3D QSA_ISNBlock3D): anchor the eigenvector sign to the
+   k-weighted centroid — s = ⟨v, m⟩ is odd in v (cancels the arbitrary
+   flip) and D4-invariant. With the fallback branch forced active, all
+   D4 angles read CLEAN at the roundoff floor (~1.4e-06 – 1.7e-06).
+   The gradient branch — 100% of real workloads on this field — is exact.
+
+```text
+[TEST 1] Exact D4 commutation:  pred(R.k) = R.pred(k)   (grid 32x32, interior)
+     angle |     max|d| |    mean|d| |       rel
+        90° |  0.000e+00 |  0.000e+00 |  0.00e+00  PASS
+       180° |  0.000e+00 |  0.000e+00 |  0.00e+00  PASS
+       270° |  0.000e+00 |  0.000e+00 |  0.00e+00  PASS
+
+[TEST 3] sign_lock verification: fallback branch forced (grid 32x32)
+    Case A     90°: max|d| = 1.431e-06   CLEAN (sign_lock holds)
+    Case A    180°: max|d| = 1.669e-06   CLEAN (sign_lock holds)
+    Case A    270°: max|d| = 1.669e-06   CLEAN (sign_lock holds)
+    Case B   90°: max|d| = 1.315e-03   (zero-field degenerate; S = 0 makes
+           the eigenvector arbitrary — ill-posed by construction, excluded)
+    verdict: eigh sign boundary CLOSED — fallback branch is
+    equivariant at all D4 angles with the sign_lock active.
+```
+
+Note: with no checkpoint present, the harness injects `res_scale = 1.0`
+into all blocks — zero-init would make message passing a no-op and the
+D4 test would pass trivially (exactly 0). The injection makes the test
+exercise the real gather → frame → harmonic gate → aggregation path.
+
+## Reproduce
+
+```bash
+# Single T4 GPU, ~15 minutes for 500 epochs
+python colab.py
+
+# or modular:
+python train.py   # trains, evaluates, saves alienx_rotation_continuous.png
+```
+
+Config: AdamW lr 2e-3, weight decay 1e-4, cosine annealing over 500 epochs,
+resolutions {16, 32, 64, 128} with 16 samples each, random rotations in [0, 360),
+interior MSE with dilation-scaled boundary crop. Best checkpoint: `alienx_best.pt`.
+
+## The debugging log (no failures hidden)
+
+- Energy collapse in early runs
+- Random gates producing noise
+- Numerical gradient artifacts at 45° → analytical gradients + pull-back rotation
+- FP16/AMP NaNs → geometry ops forced to FP32
+- OOM with 24 neighbors → chunked gather + dynamic batch sampler
+- Gradient instability → accumulation + gradient clipping
+- Domain stretching at 45° → pull-back rotation
+- Physical radius collapse at high resolutions → dynamic dilation + constant physical depth
+
+Every bug was owned, diagnosed, and killed.
 
 ## Design boundaries
 
-1. **Scale-blindness by construction** — correct for scale-free PDEs like Darcy flow; needs extension for scale-carrying physics (turbulence spectra, multifractal permeability).
-2. **Resolution-dependent frame fallback** — the gradient-magnitude threshold triggering the inertia fallback is resolution-coupled; both branches are individually equivariant, but the branch mixture varies with resolution. Negligible beyond 32×32.
+1. **Scale-blindness by construction** — correct for Darcy flow (scale-free PDE),
+   needs extension for scale-carrying physics (turbulence spectra, multifractal
+   permeability). See PAPER.md §7.1.
+2. **Resolution-dependent frame fallback** — the `grad_k_mag < 0.1` threshold is a
+   raw gradient value; both branches are equivariant, but the branch mixture differs
+   by resolution. Cleaner formulation: threshold on ||∇k||·σ. The former eigh
+   sign-flip boundary *inside* the fallback branch is CLOSED by the sign_lock
+   (TEST 3: clean at the roundoff floor at all D4 angles). See PAPER.md §7.2.
 
-## Provenance
+## Next: the n-Dimensional Organism
 
-- **Paper:** [`PAPER.md`](https://huggingface.co/ElBalor/AlienX-2D-Isotropic-Stencil/blob/main/PAPER.md) — full derivation, related-work positioning, debugging log, §9 cross-PDE GP demonstration
-- **GP checkpoints:** `alienx_gp_best.pt` (precision run), `alienx_gp_v3_best.pt` (K-curriculum run)
-- **Code:** [github.com/ElBalor/AlienX](https://github.com/ElBalor/AlienX) (S02-Invariance)
-- Checkpoint: `alienx_v2_best.pt` (state_dict, 1.7 MB, float32)
-- Part of the **Grimoire of Elbàlor** — alongside [Quantum Self-Attention (QSA)](https://doi.org/10.5281/zenodo.22250417) (Zenodo) and [Pure W-Expansion / NecroGraft](https://zenodo.org/records/21811634)
+Clifford algebra Cl(4,0) substrate, per-node blade masks, NecroGraft expansion,
+fiber-bundle message passing. The 3D frontier (SO(3)) lives in `../AlienX-S03-Invariance/`.
 
-## Citation
+## License
 
-```bibtex
-@software{yaka2026alienx,
-  author  = {Yaka, Eric Heylel Danjuma},
-  title   = {AlienX (ISN): A Continuous Rotation- and Scale-Invariant Operator on Geometric Manifolds, with a Cross-PDE Demonstration on Gross-Pitaevskii},
-  year    = {2026},
-  url     = {https://github.com/ElBalor/AlienX-Operator-2D}
-}
-```
+From The Grimoire of Elbàlor The Digital Necromancer.
 
----
-
-Eric Yaka (Elbàlor / The Digital Necromancer) · Abuja, Nigeria · AGPL-3.0
+AGPL-3.0 — see [LICENSE](LICENSE).

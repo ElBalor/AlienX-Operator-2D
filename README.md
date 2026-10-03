@@ -47,6 +47,19 @@ resolutions. No data augmentation. No learned geometry.
 
 Full logs in `RESULTS.md`.
 
+## Figures
+
+| | |
+|---|---|
+| ![Dark Necromancer Graph](figures/dark_necromancer_graph_gp.png) | ![Dark field rollout](figures/dark_field_rollout_gp.png) |
+| *Dark Necromancer Graph — Run B training diagnostics (loss, val RelRMSE, LR schedule, K-unroll curriculum)* | *Rollout comparison — split-step Fourier solver vs AlienX, \|ψ\|² at four time steps* |
+
+| ![Rotation sweep](figures/alienx_v2_rotation_sweep.png) |
+|---|
+| *Continuous rotation sweep — error vs angle across the full circle* |
+
+---
+
 ## Cross-PDE: Gross-Pitaevskii (v3)
 
 The architecture is PDE-agnostic — only the outer shell changes (`k = |ψ|²`,

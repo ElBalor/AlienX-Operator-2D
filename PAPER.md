@@ -1,14 +1,22 @@
 # AlienX (ISN): A Continuous Rotation- and Scale-Invariant Operator on Geometric Manifolds
 
-**Author:** Eric Yaka 
-**Date:** September 2026
+**Eric Yaka ("Elbàlor")** · *Independent Researcher, Abuja, Nigeria*
+
+**Subjects:** cs.LG · physics.comp-ph
+
+**Keywords:** neural operators, equivariance, SO(2), scientific machine learning, Gross-Pitaevskii, quantum dynamics, scale invariance, rotation equivariance
+
+**Version history:** v1 (Sept 2026) initial Darcy validation · v2 (Sept 2026) isotropic 24-neighbor stencil, full 5×5 rotation grid, strict equivariance proof · v3 (Oct 2026) Section 9: cross-PDE demonstration on Gross-Pitaevskii with two independent runs (changelogs in Appendix A)
+
 **Status:** 2D validation complete with isotropic 24-neighbor stencil. Arbitrary rotation equivariance within 0.003 L1 error. n-dimensional organism under construction.
+
+**Contents:** 1 Introduction · 2 Mathematical Foundations · 3 Architecture · 4 Implementation · 5 Results (5.1 scale · 5.2 rotation · 5.3 arbitrary angles) · 6 Debugging Log · 7 Current State · 8 Future Work · 9 Generality: Gross-Pitaevskii · 10 Conclusion · Appendix A Changelogs · References
 
 ---
 
 ## Abstract
 
-AlienX (Isomorphic Spatial Net, ISN) is a neural operator that operates on continuous geometric manifolds instead of fixed grids. It natively respects rotation and scale invariance through a local SO(2) frame construction, scale-normalized displacements, and a 2π-periodic complex harmonic embedding.
+AlienX (Isomorphic Spatial Net, ISN) is a neural operator that operates on continuous geometric manifolds instead of fixed grids. It natively respects rotation and scale invariance through a local SO(2) frame construction, scale-normalized displacements, and a 2π-periodic complex harmonic embedding. The operator is validated twice: once on Darcy flow — the invariance stress-test (Figure 1) — and once out-of-domain on the 2D Gross-Pitaevskii equation, where the phase mechanism proves load-bearing (108.6× MSE degradation when ablated; Figures 2–3, Section 9).
 
 The network learns from Darcy flow with resolutions from 16×16 to 256×256 and rotations spanning any angle. The final isotropic 24-neighbor stencil eliminates the 45° residual observed in earlier 8-directional versions. New results demonstrate:
 
@@ -394,6 +402,10 @@ Interior L1 error (lower is better):
 
 ### 5.3 Arbitrary Continuous Angle Equivariance
 
+![Figure 1 — Darcy rotation sweep](figures/alienx_v2_rotation_sweep.png)
+
+*Figure 1: Darcy-flow rotation sweep — interior L1 error as a function of rotation angle. The isotropic 24-neighbor stencil removes the 45° residual seen in earlier 8-directional stencils; error stays flat across the full circle.*
+
 Deviation from 0° baseline (Delta L1) at 64×64:
 
 | Angle | Error | Delta vs 0° |
@@ -504,6 +516,10 @@ single-step, interior, relative RMSE):
 | Multi-g (−0.5 / −1.0 / −2.0) | 0.344–0.362% | 1.044–1.051% |
 | Scale, zero-shot | 16→256: 0.324–0.367% | 16→256: 1.05–1.10% |
 
+![Figure 2 — Dark Necromancer Graph](figures/dark_necromancer_graph_gp.png)
+
+*Figure 2: Dark Necromancer Graph — Run B training diagnostics. Panels: loss curves (train/val), validation RelRMSE, learning-rate schedule, and the K-unroll curriculum 1→3→5. 200 epochs, 91.5 min on a single T4.*
+
 Run A's IC generator is deterministic (fixed phase coefficients; only rotation
 varies), so its seed-spread is 0.0000% by construction — it is a
 mechanism-precision result, not an IC-generalization result. Run B carries the
@@ -514,6 +530,10 @@ even-harmonic edge features (cos 2θ, sin 2θ) and taking the frame source as
 `k = |ψ|²` rather than `|ψ|²·|∇arg ψ|²` — brought the loss to 0.000004, a 14×
 improvement. The ablation ratios above independently confirm the harmonic gate
 as the load-bearing component.
+
+![Figure 3 — Field rollout comparison](figures/dark_field_rollout_gp.png)
+
+*Figure 3: Rollout comparison on an unseen initial condition (N=64, g=−1.0, Δt=2×10⁻³). Top row: split-step Fourier ground truth |ψ|². Bottom row: AlienX autoregressive rollout, five consecutive single-step predictions (t = 0 → 0.010).*
 
 Verdict: the phase mechanism is load-bearing on quantum hydrodynamics exactly
 as the architecture's design predicts, and the operator transfers across PDEs
@@ -534,7 +554,9 @@ Code availability: The full training and evaluation script is provided in this r
 
 ---
 
-## Changelog: v1 → v2
+## Appendix A: Changelogs
+
+### A.1 v1 → v2
 
 | Location | v1 | v2 |
 |---|---|---|
@@ -551,7 +573,7 @@ Everything else — every code block, every section, every paragraph, every bull
 
 ---
 
-## Changelog: v2 → v3
+### A.2 v2 → v3
 
 | Location | v2 | v3 |
 |---|---|---|
