@@ -55,9 +55,11 @@ RELATED IDENTIFIERS
 - Code repository: github.com/ElBalor/AlienX-Operator-2D
 
 FILES
-AlienX_2D_Paper.docx       The complete paper (editable, primary artifact)
+AlienX_2D_Paper.docx       The complete paper (editable, primary artifact, v3
+                           — Section 9 GP cross-PDE included)
 PAPER.md                   The paper as markdown (v3)
-PAPER_v3_UPDATE_...        Paste-ready Section 9 text for the docx
+PAPER_v3_UPDATE_...        Paste-ready Section 9 text (also already applied
+                           to the docx; kept for provenance)
 alienx_v2_best.pt          Darcy checkpoint (state_dict, float32)
 model.py                   Importable architecture (AlienXOperator + ISNBlock)
 data.py                    Darcy generator (pull-back rotation, analytic grads)
